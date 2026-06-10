@@ -10,6 +10,7 @@ from cinemeta.persistence import Database
 from cinemeta.plugin_registry import PluginRegistry
 from plugins.local_ingest.lo_fi_renderer import ThumbnailImageProvider
 from plugins.local_ingest.plugin import LocalIngestPlugin
+from plugins.metadata_xmp.plugin import MetadataXmpPlugin
 
 
 def main() -> None:
@@ -27,6 +28,12 @@ def main() -> None:
     ingest_plugin.initialize(db=db, hierarchy=hierarchy)
     registry.register(ingest_plugin)
     registry.activate("local_ingest")
+
+    # metadata_xmp plugin (no QML workbench — reacts to asset.created events)
+    xmp_plugin = MetadataXmpPlugin()
+    xmp_plugin.initialize(db=db)
+    registry.register(xmp_plugin)
+    registry.activate("metadata_xmp")
 
     thumbnail_provider = ThumbnailImageProvider()
 
