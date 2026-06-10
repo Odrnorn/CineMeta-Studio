@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:cinemeta:hfv:1.0"
+           xmlns:hfv="urn:cinemeta:hfv:1.0"
+           elementFormDefault="qualified">
+
+  <!-- Shared simple types -->
+  <xs:simpleType name="ConfidenceStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="GREEN"/>
+      <xs:enumeration value="YELLOW"/>
+      <xs:enumeration value="RED"/>
+      <xs:enumeration value="VALIDATED"/>
+      <xs:enumeration value="PENDING"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Base record shared by all asset types -->
+  <xs:complexType name="BaseRecord">
+    <xs:sequence>
+      <xs:element name="id"         type="xs:string"/>
+      <xs:element name="title"      type="xs:string"  minOccurs="0"/>
+      <xs:element name="year"       type="xs:gYear"   minOccurs="0"/>
+      <xs:element name="country"    type="xs:string"  minOccurs="0"/>
+      <xs:element name="director"   type="xs:string"  minOccurs="0"/>
+      <xs:element name="confidence" type="xs:float"   minOccurs="0"/>
+      <xs:element name="status"     type="hfv:ConfidenceStatus" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Scene inside a video record -->
+  <xs:complexType name="SceneRecord">
+    <xs:sequence>
+      <xs:element name="scene_id"        type="xs:string"/>
+      <xs:element name="timecode_in"     type="xs:string"  minOccurs="0"/>
+      <xs:element name="timecode_out"    type="xs:string"  minOccurs="0"/>
+      <xs:element name="thumbnail_path"  type="xs:string"  minOccurs="0"/>
+      <xs:element name="keyframe_path"   type="xs:string"  minOccurs="0"/>
+      <xs:element name="tags"            type="xs:string"  minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="confidence"      type="xs:float"   minOccurs="0"/>
+      <xs:element name="status"          type="hfv:ConfidenceStatus" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Video record extends BaseRecord -->
+  <xs:complexType name="VideoRecord">
+    <xs:complexContent>
+      <xs:extension base="hfv:BaseRecord">
+        <xs:sequence>
+          <xs:element name="codec"        type="xs:string"  minOccurs="0"/>
+          <xs:element name="resolution"   type="xs:string"  minOccurs="0"/>
+          <xs:element name="fps"          type="xs:float"   minOccurs="0"/>
+          <xs:element name="duration_sec" type="xs:float"   minOccurs="0"/>
+          <xs:element name="audio_tracks" type="xs:integer" minOccurs="0"/>
+          <xs:element name="scenes"       type="hfv:SceneRecord" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!-- Root catalog element -->
+  <xs:element name="catalog">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="record" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:complexContent>
+              <xs:extension base="hfv:BaseRecord"/>
+            </xs:complexContent>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string" fixed="1.0"/>
+      <xs:attribute name="created" type="xs:dateTime"/>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>
