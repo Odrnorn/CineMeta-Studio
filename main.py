@@ -11,6 +11,7 @@ from cinemeta.plugin_registry import PluginRegistry
 from plugins.local_ingest.lo_fi_renderer import ThumbnailImageProvider
 from plugins.local_ingest.plugin import LocalIngestPlugin
 from plugins.metadata_xmp.plugin import MetadataXmpPlugin
+from plugins.mock_ai.plugin import MockAiPlugin
 
 
 def main() -> None:
@@ -35,6 +36,12 @@ def main() -> None:
     registry.register(xmp_plugin)
     registry.activate("metadata_xmp")
 
+    # mock_ai plugin + validation workbench
+    mock_ai = MockAiPlugin()
+    mock_ai.initialize(db=db)
+    registry.register(mock_ai)
+    registry.activate("mock_ai")
+
     thumbnail_provider = ThumbnailImageProvider()
 
     engine = QQmlApplicationEngine()
@@ -42,6 +49,7 @@ def main() -> None:
     engine.rootContext().setContextProperty("pluginRegistry", registry)
     engine.rootContext().setContextProperty("localIngestPlugin", ingest_plugin)
     engine.rootContext().setContextProperty("pluginModel", ingest_plugin.file_model)
+    engine.rootContext().setContextProperty("mockAiPlugin", mock_ai)
 
     qml_path = Path(__file__).parent / "qml" / "main.qml"
     engine.load(str(qml_path))
@@ -49,6 +57,13 @@ def main() -> None:
     if not engine.rootObjects():
         db.close()
         sys.exit(1)
+
+    # Default workbench: ValidationWorkbench (mock_ai)
+    validation_qml = str(Path(__file__).parent / "plugins" / "mock_ai" / "qml" / "ValidationWorkbench.qml")
+    root_obj = engine.rootObjects()[0]
+    router_obj = root_obj.findChild(type(root_obj), "router")
+    if router_obj is not None:
+        router_obj.setProperty("activeWorkbenchUrl", validation_qml)
 
     # Wire thumbnail provider to ingest events so new assets get registered
     def _on_asset_created(asset_id: str, asset_type: str, **_) -> None:
