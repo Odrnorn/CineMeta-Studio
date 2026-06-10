@@ -3,7 +3,26 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, Slot
+try:
+    from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, Slot
+    _QT_AVAILABLE = True
+except ImportError:
+    _QT_AVAILABLE = False
+    # Minimal stubs so the module is importable without PySide6 (e.g. in tests)
+    class QAbstractListModel:  # type: ignore[no-redef]
+        def __init__(self, parent=None): pass
+        def beginInsertRows(self, *a): pass
+        def endInsertRows(self): pass
+        def beginResetModel(self): pass
+        def endResetModel(self): pass
+    class QModelIndex:  # type: ignore[no-redef]
+        pass
+    class Qt:  # type: ignore[no-redef]
+        DisplayRole = 0
+        UserRole = 256
+    def Slot(*args, **kwargs):  # type: ignore[no-redef]
+        def decorator(fn): return fn
+        return decorator
 
 from cinemeta.domain.assets import AssetType, MediaAsset
 from cinemeta.domain.hierarchy import AssetHierarchy
