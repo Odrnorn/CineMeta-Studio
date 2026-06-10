@@ -1,0 +1,25 @@
+{
+  "scenarios": [
+    {
+      "label": "green",
+      "candidates": [
+        {"label": "Metropolis (1927)", "score": 0.92},
+        {"label": "Nosferatu (1922)",  "score": 0.71}
+      ]
+    },
+    {
+      "label": "yellow",
+      "candidates": [
+        {"label": "Battleship Potemkin (1925)", "score": 0.88},
+        {"label": "The General (1926)",         "score": 0.84}
+      ]
+    },
+    {
+      "label": "red",
+      "candidates": [
+        {"label": "Unbekannter Film A", "score": 0.38},
+        {"label": "Unbekannter Film B", "score": 0.22}
+      ]
+    }
+  ]
+}
