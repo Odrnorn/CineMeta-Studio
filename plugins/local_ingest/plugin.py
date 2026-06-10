@@ -113,6 +113,17 @@ class LocalIngestPlugin(CineMetaPlugin):
         self._hierarchy = None
 
     @Slot(str, result="QVariant")
+    def list_files(self, folder_url: str) -> list[str]:
+        """Return supported file paths inside *folder_url* (QML file URL or plain path)."""
+        folder = Path(str(folder_url).replace("file:///", "").replace("file://", ""))
+        if not folder.is_dir():
+            return []
+        return [
+            str(p) for p in sorted(folder.iterdir())
+            if p.is_file() and p.suffix.lower() in _EXT_MAP
+        ]
+
+    @Slot(str, result="QVariant")
     def ingest_file(self, path: str) -> dict[str, Any]:
         asset = MediaAsset(
             id=str(uuid.uuid4()),
