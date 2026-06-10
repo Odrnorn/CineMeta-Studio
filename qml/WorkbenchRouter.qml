@@ -3,6 +3,7 @@ import QtQuick.Controls
 
 Item {
     id: router
+    objectName: "router"
 
     // Filled by PluginRegistry bridge when a plugin activates a workbench.
     property string activeWorkbenchUrl: ""

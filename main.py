@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QObject, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -59,11 +60,12 @@ def main() -> None:
         sys.exit(1)
 
     # Default workbench: ValidationWorkbench (mock_ai)
-    validation_qml = str(Path(__file__).parent / "plugins" / "mock_ai" / "qml" / "ValidationWorkbench.qml")
+    validation_path = Path(__file__).parent / "plugins" / "mock_ai" / "qml" / "ValidationWorkbench.qml"
+    validation_url = QUrl.fromLocalFile(str(validation_path)).toString()
     root_obj = engine.rootObjects()[0]
-    router_obj = root_obj.findChild(type(root_obj), "router")
+    router_obj = root_obj.findChild(QObject, "router")
     if router_obj is not None:
-        router_obj.setProperty("activeWorkbenchUrl", validation_qml)
+        router_obj.setProperty("activeWorkbenchUrl", validation_url)
 
     # Wire thumbnail provider to ingest events so new assets get registered
     def _on_asset_created(asset_id: str, asset_type: str, **_) -> None:
@@ -72,10 +74,6 @@ def main() -> None:
             thumbnail_provider.register_path(asset_id, asset.source_path)
 
     bus.subscribe("asset.created", _on_asset_created)
-
-    # Activate the ingest workbench in the router
-    root = engine.rootObjects()[0]
-    router = root.findChild(type(root), "router") if root else None
 
     exit_code = app.exec()
     db.close()
