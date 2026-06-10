@@ -17,7 +17,7 @@ Item {
     Column {
         anchors.centerIn: parent
         spacing: 16
-        visible: router.activeWorkbenchUrl === ""
+        visible: router.activeWorkbenchUrl === "" && workbenchLoader.status !== Loader.Ready
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
