@@ -23,7 +23,12 @@ class FrameExtractorEngine:
             cap.release()
             if not ok:
                 return False
-            cv2.imwrite(output_path, frame)
+            # cv2.imwrite silently fails on Windows with non-ASCII paths;
+            # use imencode + write_bytes as a portable alternative.
+            ok_enc, buf = cv2.imencode(".png", frame)
+            if not ok_enc:
+                return False
+            Path(output_path).write_bytes(bytes(buf))
             return True
         except Exception:
             return False
