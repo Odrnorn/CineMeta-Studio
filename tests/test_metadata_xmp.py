@@ -221,3 +221,17 @@ def test_plugin_publishes_xmp_extracted(tmp_path, monkeypatch):
     assert events[0]["asset_id"] == asset.id
     assert events[0]["had_xmp"] is True
     plugin.teardown()
+
+
+def test_plugin_skips_video_frame_assets():
+    db, asset = _make_db_with_asset(AssetType.VIDEO_FRAME)
+    plugin = MetadataXmpPlugin()
+    plugin.initialize(db=db)
+
+    events: list[dict] = []
+    bus.subscribe("xmp.extracted", lambda **kw: events.append(kw))
+    bus.publish("asset.created", asset_id=asset.id, asset_type=AssetType.VIDEO_FRAME.value)
+    bus.unsubscribe("xmp.extracted", events.append)
+
+    assert events == []
+    plugin.teardown()

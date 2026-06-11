@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -13,9 +14,13 @@ from plugins.local_ingest.lo_fi_renderer import ThumbnailImageProvider
 from plugins.local_ingest.plugin import LocalIngestPlugin
 from plugins.metadata_xmp.plugin import MetadataXmpPlugin
 from plugins.mock_ai.plugin import MockAiPlugin
+from plugins.video_analysis.plugin import VideoAnalysisPlugin
 
 
 def main() -> None:
+    _conf = Path(__file__).parent / "qtquickcontrols2.conf"
+    os.environ.setdefault("QT_QUICK_CONTROLS_CONF", str(_conf))
+
     app = QGuiApplication(sys.argv)
 
     db_path = Path.home() / ".cinemeta"
@@ -43,9 +48,16 @@ def main() -> None:
     registry.register(mock_ai)
     registry.activate("mock_ai")
 
+    # video_analysis plugin — extracts frames from VIDEO assets
+    video_plugin = VideoAnalysisPlugin()
+    video_plugin.initialize(db=db, hierarchy=hierarchy)
+    registry.register(video_plugin)
+    registry.activate("video_analysis")
+
     thumbnail_provider = ThumbnailImageProvider()
 
     engine = QQmlApplicationEngine()
+    engine.addImportPath(str(Path(__file__).parent / "qml"))
     engine.addImageProvider("thumbnails", thumbnail_provider)
     engine.rootContext().setContextProperty("pluginRegistry", registry)
     engine.rootContext().setContextProperty("localIngestPlugin", ingest_plugin)

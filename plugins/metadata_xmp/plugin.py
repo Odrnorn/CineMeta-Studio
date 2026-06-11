@@ -34,8 +34,8 @@ class MetadataXmpPlugin(CineMetaPlugin):
         self._db = None
 
     def _on_asset_created(self, asset_id: str, asset_type: str, **_: Any) -> None:
-        if asset_type == AssetType.VIDEO.value:
-            return  # video metadata handled in Phase 5
+        if asset_type in (AssetType.VIDEO.value, AssetType.VIDEO_FRAME.value):
+            return  # VIDEO handled by video_analysis; VIDEO_FRAME has no XMP
 
         if self._db is None:
             return

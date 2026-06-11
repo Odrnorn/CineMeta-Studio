@@ -1,0 +1,28 @@
+{
+  "profiles": [
+    {
+      "fps": 24.0,
+      "duration": 90.0,
+      "width": 1920,
+      "height": 1080,
+      "codec": "h264",
+      "scene_count": 5
+    },
+    {
+      "fps": 25.0,
+      "duration": 120.0,
+      "width": 1280,
+      "height": 720,
+      "codec": "h264",
+      "scene_count": 8
+    },
+    {
+      "fps": 30.0,
+      "duration": 60.0,
+      "width": 3840,
+      "height": 2160,
+      "codec": "hevc",
+      "scene_count": 3
+    }
+  ]
+}
