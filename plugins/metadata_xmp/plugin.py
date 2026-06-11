@@ -1,17 +1,31 @@
 from __future__ import annotations
+import json
+from pathlib import Path
 from typing import Any
 
 from cinemeta.domain.assets import AssetType
 from cinemeta.event_bus import bus
 from cinemeta.persistence import Database
 from cinemeta.plugin_interface import CineMetaPlugin, CineMetaWorkbench
-from .xmp_engine import XmpEngine
+
+_PLUGIN_DIR = Path(__file__).parent
 
 
 class MetadataXmpPlugin(CineMetaPlugin):
+    """Stub metadata plugin.
+
+    Returns deterministic mock HFV data from mock_xmp_profiles.json.
+    No lxml, python-xmp-toolkit, or real XMP files needed.
+    The real backend will replace this stub while keeping the identical
+    event contract (xmp.extracted with {asset_id, hfv_data, had_xmp}).
+    """
+
     def __init__(self) -> None:
         self._db: Database | None = None
-        self._engine = XmpEngine()
+        data_path = _PLUGIN_DIR / "mock_xmp_profiles.json"
+        self._profiles: list[dict] = json.loads(
+            data_path.read_text(encoding="utf-8")
+        )["profiles"]
 
     @property
     def name(self) -> str:
@@ -44,11 +58,11 @@ class MetadataXmpPlugin(CineMetaPlugin):
         if asset is None:
             return
 
-        raw_xmp = self._engine.extract(asset.source_path)
-        hfv = self._engine.map_to_hfv(raw_xmp)
+        # Deterministic profile selection: same asset_id → same data
+        profile = self._profiles[hash(asset_id) % len(self._profiles)]
+        hfv_data: dict[str, Any] = dict(profile)
 
-        asset.raw_metadata = raw_xmp
-        asset.hfv_data = hfv
+        asset.hfv_data = hfv_data
         self._db.save_asset(asset)
 
-        bus.publish("xmp.extracted", asset_id=asset_id, hfv_data=hfv, had_xmp=bool(raw_xmp))
+        bus.publish("xmp.extracted", asset_id=asset_id, hfv_data=hfv_data, had_xmp=True)
