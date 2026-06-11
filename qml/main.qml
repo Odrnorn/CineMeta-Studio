@@ -68,7 +68,7 @@ ApplicationWindow {
                         leftPadding: Theme.spacingS
                         topPadding: Theme.spacingS
                         bottomPadding: Theme.spacingXS
-                        letterSpacing: 1
+                        font.letterSpacing: 1
                     }
 
                     // Workbench nav buttons (dynamic)
