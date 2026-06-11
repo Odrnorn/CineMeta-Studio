@@ -1,0 +1,34 @@
+{
+  "profiles": [
+    {
+      "title": "Metropolis",
+      "year": "1927",
+      "country": "Germany",
+      "director": "Fritz Lang"
+    },
+    {
+      "title": "Nosferatu",
+      "year": "1922",
+      "country": "Germany",
+      "director": "F.W. Murnau"
+    },
+    {
+      "title": "Battleship Potemkin",
+      "year": "1925",
+      "country": "Soviet Union",
+      "director": "Sergei Eisenstein"
+    },
+    {
+      "title": "The General",
+      "year": "1926",
+      "country": "USA",
+      "director": "Buster Keaton"
+    },
+    {
+      "title": "Der Golem",
+      "year": "1920",
+      "country": "Germany",
+      "director": "Paul Wegener"
+    }
+  ]
+}
