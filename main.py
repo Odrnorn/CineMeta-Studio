@@ -14,6 +14,7 @@ from plugins.local_ingest.lo_fi_renderer import ThumbnailImageProvider
 from plugins.local_ingest.plugin import LocalIngestPlugin
 from plugins.metadata_xmp.plugin import MetadataXmpPlugin
 from plugins.mock_ai.plugin import MockAiPlugin
+from plugins.semantic_analysis.plugin import SemanticAnalysisPlugin
 from plugins.video_analysis.plugin import VideoAnalysisPlugin
 
 
@@ -54,6 +55,12 @@ def main() -> None:
     registry.register(video_plugin)
     registry.activate("video_analysis")
 
+    # semantic_analysis plugin — clusters validated assets in 2D semantic space
+    semantic_plugin = SemanticAnalysisPlugin()
+    semantic_plugin.initialize(db=db)
+    registry.register(semantic_plugin)
+    registry.activate("semantic_analysis")
+
     thumbnail_provider = ThumbnailImageProvider()
 
     engine = QQmlApplicationEngine()
@@ -63,6 +70,7 @@ def main() -> None:
     engine.rootContext().setContextProperty("localIngestPlugin", ingest_plugin)
     engine.rootContext().setContextProperty("pluginModel", ingest_plugin.file_model)
     engine.rootContext().setContextProperty("mockAiPlugin", mock_ai)
+    engine.rootContext().setContextProperty("semanticPlugin", semantic_plugin)
 
     qml_path = Path(__file__).parent / "qml" / "main.qml"
     engine.load(str(qml_path))
