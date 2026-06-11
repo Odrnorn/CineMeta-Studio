@@ -15,6 +15,7 @@ from plugins.local_ingest.plugin import LocalIngestPlugin
 from plugins.metadata_xmp.plugin import MetadataXmpPlugin
 from plugins.mock_ai.plugin import MockAiPlugin
 from plugins.semantic_analysis.plugin import SemanticAnalysisPlugin
+from plugins.universal_export.plugin import UniversalExportPlugin
 from plugins.video_analysis.plugin import VideoAnalysisPlugin
 
 
@@ -61,6 +62,12 @@ def main() -> None:
     registry.register(semantic_plugin)
     registry.activate("semantic_analysis")
 
+    # universal_export plugin — exports validated assets to file
+    export_plugin = UniversalExportPlugin()
+    export_plugin.initialize(db=db)
+    registry.register(export_plugin)
+    registry.activate("universal_export")
+
     thumbnail_provider = ThumbnailImageProvider()
 
     engine = QQmlApplicationEngine()
@@ -71,6 +78,7 @@ def main() -> None:
     engine.rootContext().setContextProperty("pluginModel", ingest_plugin.file_model)
     engine.rootContext().setContextProperty("mockAiPlugin", mock_ai)
     engine.rootContext().setContextProperty("semanticPlugin", semantic_plugin)
+    engine.rootContext().setContextProperty("exportPlugin", export_plugin)
 
     qml_path = Path(__file__).parent / "qml" / "main.qml"
     engine.load(str(qml_path))
