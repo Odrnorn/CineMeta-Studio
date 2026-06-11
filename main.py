@@ -1,8 +1,9 @@
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
-from PySide6.QtCore import QObject, QUrl
+from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -19,6 +20,40 @@ from plugins.universal_export.plugin import UniversalExportPlugin
 from plugins.video_analysis.plugin import VideoAnalysisPlugin
 
 
+# ---------------------------------------------------------------------------
+# WorkbenchListModel — exposes registered workbenches to QML sidebar
+# ---------------------------------------------------------------------------
+
+class WorkbenchListModel(QAbstractListModel):
+    """Static model populated once from all active plugins' workbenches."""
+
+    _ROLES = {
+        Qt.UserRole + 1: b"wbId",
+        Qt.UserRole + 2: b"wbLabel",
+        Qt.UserRole + 3: b"wbUrl",   # QUrl.fromLocalFile(...).toString()
+    }
+
+    def __init__(self, entries: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self._items = entries
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return len(self._items)
+
+    def roleNames(self) -> dict[int, bytes]:
+        return self._ROLES
+
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
+        if not index.isValid() or index.row() >= len(self._items):
+            return None
+        key = self._ROLES.get(role, b"").decode()
+        return self._items[index.row()].get(key)
+
+
+# ---------------------------------------------------------------------------
+# Application entry point
+# ---------------------------------------------------------------------------
+
 def main() -> None:
     _conf = Path(__file__).parent / "qtquickcontrols2.conf"
     os.environ.setdefault("QT_QUICK_CONTROLS_CONF", str(_conf))
@@ -32,41 +67,40 @@ def main() -> None:
 
     registry = PluginRegistry()
 
-    # local_ingest plugin
+    # Register and activate all plugins — in sidebar display order.
+    # activate() calls initialize() exactly once with the right kwargs.
+
     ingest_plugin = LocalIngestPlugin()
-    ingest_plugin.initialize(db=db, hierarchy=hierarchy)
     registry.register(ingest_plugin)
-    registry.activate("local_ingest")
+    registry.activate("local_ingest", db=db, hierarchy=hierarchy)
 
-    # metadata_xmp plugin (no QML workbench — reacts to asset.created events)
     xmp_plugin = MetadataXmpPlugin()
-    xmp_plugin.initialize(db=db)
     registry.register(xmp_plugin)
-    registry.activate("metadata_xmp")
+    registry.activate("metadata_xmp", db=db)
 
-    # mock_ai plugin + validation workbench
     mock_ai = MockAiPlugin()
-    mock_ai.initialize(db=db)
     registry.register(mock_ai)
-    registry.activate("mock_ai")
+    registry.activate("mock_ai", db=db)
 
-    # video_analysis plugin — extracts frames from VIDEO assets
     video_plugin = VideoAnalysisPlugin()
-    video_plugin.initialize(db=db, hierarchy=hierarchy)
     registry.register(video_plugin)
-    registry.activate("video_analysis")
+    registry.activate("video_analysis", db=db, hierarchy=hierarchy)
 
-    # semantic_analysis plugin — clusters validated assets in 2D semantic space
     semantic_plugin = SemanticAnalysisPlugin()
-    semantic_plugin.initialize(db=db)
     registry.register(semantic_plugin)
-    registry.activate("semantic_analysis")
+    registry.activate("semantic_analysis", db=db)
 
-    # universal_export plugin — exports validated assets to file
     export_plugin = UniversalExportPlugin()
-    export_plugin.initialize(db=db)
     registry.register(export_plugin)
-    registry.activate("universal_export")
+    registry.activate("universal_export", db=db)
+
+    # Build workbench list model from all active plugins (in activation order)
+    entries: list[dict[str, Any]] = []
+    for plugin in registry.active_plugins:
+        for wb in plugin.workbenches:
+            url = QUrl.fromLocalFile(wb.qml_component).toString()
+            entries.append({"wbId": wb.id, "wbLabel": wb.label, "wbUrl": url})
+    wb_model = WorkbenchListModel(entries)
 
     thumbnail_provider = ThumbnailImageProvider()
 
@@ -79,6 +113,7 @@ def main() -> None:
     engine.rootContext().setContextProperty("mockAiPlugin", mock_ai)
     engine.rootContext().setContextProperty("semanticPlugin", semantic_plugin)
     engine.rootContext().setContextProperty("exportPlugin", export_plugin)
+    engine.rootContext().setContextProperty("workbenchModel", wb_model)
 
     qml_path = Path(__file__).parent / "qml" / "main.qml"
     engine.load(str(qml_path))
@@ -87,16 +122,8 @@ def main() -> None:
         db.close()
         sys.exit(1)
 
-    # Default workbench: ValidationWorkbench (mock_ai)
-    validation_path = Path(__file__).parent / "plugins" / "mock_ai" / "qml" / "ValidationWorkbench.qml"
-    validation_url = QUrl.fromLocalFile(str(validation_path)).toString()
-    root_obj = engine.rootObjects()[0]
-    router_obj = root_obj.findChild(QObject, "router")
-    if router_obj is not None:
-        router_obj.setProperty("activeWorkbenchUrl", validation_url)
-
     # Wire thumbnail provider to ingest events so new assets get registered
-    def _on_asset_created(asset_id: str, asset_type: str, **_) -> None:
+    def _on_asset_created(asset_id: str, asset_type: str, **_: Any) -> None:
         asset = db.load_asset(asset_id)
         if asset:
             thumbnail_provider.register_path(asset_id, asset.source_path)
