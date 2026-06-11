@@ -1,0 +1,7 @@
+{
+  "clusters": [
+    {"id": 0, "label": "Stummfilm Drama",  "color": "#7b2ff7", "cx": 0.25, "cy": 0.30},
+    {"id": 1, "label": "Komödie",          "color": "#2196f3", "cx": 0.70, "cy": 0.25},
+    {"id": 2, "label": "Dokumentation",    "color": "#4caf50", "cx": 0.50, "cy": 0.75}
+  ]
+}
