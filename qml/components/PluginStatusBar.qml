@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import CineMeta 1.0
 
 Item {
-    anchors.fill: parent
+    implicitHeight: 28
 
     RowLayout {
         anchors { fill: parent; leftMargin: Theme.spacingM; rightMargin: Theme.spacingM }
