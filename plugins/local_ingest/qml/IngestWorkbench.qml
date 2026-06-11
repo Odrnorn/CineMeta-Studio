@@ -2,18 +2,19 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import CineMeta 1.0
 
 Item {
     id: root
 
     ColumnLayout {
-        anchors { fill: parent; margins: 16 }
-        spacing: 12
+        anchors { fill: parent; margins: Theme.spacingL }
+        spacing: Theme.spacingM
 
         // Toolbar
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Theme.spacingS
 
             Button {
                 text: "Verzeichnis wählen …"
@@ -36,8 +37,8 @@ Item {
 
             Text {
                 text: fileListView.count + " Datei(en) gefunden"
-                color: "#888"
-                font.pixelSize: 12
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontSizeS
             }
         }
 
@@ -45,9 +46,9 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#0d0d1a"
-            border.color: "#2a2a4a"
-            radius: 4
+            color: Theme.bgContainer
+            border.color: Theme.border
+            radius: Theme.radius
 
             ListView {
                 id: fileListView
@@ -58,10 +59,10 @@ Item {
                 delegate: Rectangle {
                     width: fileListView.width
                     height: 56
-                    color: index % 2 === 0 ? "#13132a" : "#0d0d1a"
+                    color: index % 2 === 0 ? Theme.bgCard : Theme.bgContainer
 
                     RowLayout {
-                        anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                        anchors { fill: parent; leftMargin: Theme.spacingS; rightMargin: Theme.spacingS }
                         spacing: 10
 
                         // Thumbnail
@@ -78,15 +79,15 @@ Item {
                             spacing: 2
                             Text {
                                 text: model.fileName
-                                color: "#e0e0e0"
-                                font.pixelSize: 13
+                                color: Theme.textPrimary
+                                font.pixelSize: Theme.fontSizeM
                                 elide: Text.ElideMiddle
                                 width: parent.width
                             }
                             Text {
                                 text: model.assetType
-                                color: "#888"
-                                font.pixelSize: 11
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontSizeXS
                             }
                         }
 
@@ -103,8 +104,8 @@ Item {
                     anchors.centerIn: parent
                     visible: fileListView.count === 0
                     text: "Wähle ein Verzeichnis, um Dateien zu laden."
-                    color: "#555"
-                    font.pixelSize: 14
+                    color: Theme.textMuted
+                    font.pixelSize: Theme.fontSizeL
                 }
             }
         }

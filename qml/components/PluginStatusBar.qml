@@ -1,17 +1,18 @@
 import QtQuick
 import QtQuick.Layouts
+import CineMeta 1.0
 
 Item {
     anchors.fill: parent
 
     RowLayout {
-        anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
-        spacing: 8
+        anchors { fill: parent; leftMargin: Theme.spacingM; rightMargin: Theme.spacingM }
+        spacing: Theme.spacingS
 
         Text {
             text: "Plugins:"
-            color: "#888"
-            font.pixelSize: 11
+            color: Theme.textSecondary
+            font.pixelSize: Theme.fontSizeXS
         }
 
         // Populated at runtime by the Python bridge
@@ -19,11 +20,11 @@ Item {
             model: pluginModel  // exposed from Python via QAbstractListModel
 
             delegate: Row {
-                spacing: 4
+                spacing: Theme.spacingXS
                 Text {
                     text: model.pluginName
-                    color: model.active ? "#e0e0e0" : "#555"
-                    font.pixelSize: 11
+                    color: model.active ? Theme.textPrimary : Theme.textMuted
+                    font.pixelSize: Theme.fontSizeXS
                 }
             }
         }

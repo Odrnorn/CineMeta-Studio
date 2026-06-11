@@ -1,4 +1,5 @@
 import QtQuick
+import CineMeta 1.0
 
 Rectangle {
     id: badge
@@ -8,14 +9,14 @@ Rectangle {
 
     width: 14
     height: 14
-    radius: 7
+    radius: Theme.radiusBadge
 
     color: {
         switch (status) {
-        case "GREEN":   return "#4caf50"
-        case "YELLOW":  return "#ffeb3b"
-        case "RED":     return "#f44336"
-        default:        return "#9e9e9e"
+        case "GREEN":   return Theme.colorGreen
+        case "YELLOW":  return Theme.colorYellow
+        case "RED":     return Theme.colorRed
+        default:        return Theme.colorPending
         }
     }
 

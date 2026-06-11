@@ -1,5 +1,4 @@
 from __future__ import annotations
-import subprocess
 import uuid
 
 import pytest
@@ -8,19 +7,12 @@ from cinemeta.domain.assets import AssetType, MediaAsset
 from cinemeta.domain.hierarchy import AssetHierarchy
 from cinemeta.event_bus import bus
 from cinemeta.persistence import Database
-from plugins.video_analysis.ffprobe_engine import FfprobeEngine
-from plugins.video_analysis.frame_extractor import FrameExtractorEngine
 from plugins.video_analysis.plugin import VideoAnalysisPlugin
-from plugins.video_analysis.scene_detector import SceneDetectorEngine
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-_FAKE_FFPROBE = {"fps": 24.0, "duration": 90.0, "width": 1920, "height": 1080, "codec": "h264"}
-_THREE_SCENES = [0.0, 30.0, 60.0]
-
 
 def _db_with_video() -> tuple[Database, MediaAsset]:
     db = Database(":memory:")
@@ -29,109 +21,44 @@ def _db_with_video() -> tuple[Database, MediaAsset]:
     return db, asset
 
 
-def _plugin(db: Database, hierarchy: AssetHierarchy | None = None) -> VideoAnalysisPlugin:
+def _plugin(
+    db: Database,
+    hierarchy: AssetHierarchy | None = None,
+    frames_root=None,
+    monkeypatch=None,
+) -> VideoAnalysisPlugin:
     p = VideoAnalysisPlugin()
+    if frames_root is not None and monkeypatch is not None:
+        monkeypatch.setattr("plugins.video_analysis.plugin._FRAMES_ROOT", frames_root)
     p.initialize(db=db, hierarchy=hierarchy or AssetHierarchy())
     return p
-
-
-def _mock_engines(monkeypatch, ffprobe=_FAKE_FFPROBE, scenes=_THREE_SCENES, frame_ok=True):
-    monkeypatch.setattr(FfprobeEngine, "extract", lambda self, p: ffprobe)
-    monkeypatch.setattr(SceneDetectorEngine, "detect", lambda self, p: list(scenes))
-    monkeypatch.setattr(FrameExtractorEngine, "extract_frame", lambda self, *a: frame_ok)
-
-
-# ---------------------------------------------------------------------------
-# A — FfprobeEngine
-# ---------------------------------------------------------------------------
-
-def test_ffprobe_returns_expected_keys(monkeypatch):
-    engine = FfprobeEngine()
-    monkeypatch.setattr(engine, "_run", lambda p: _FAKE_FFPROBE)
-    result = engine.extract("/any.mp4")
-    assert {"fps", "duration", "width", "height", "codec"} == set(result.keys())
-
-
-def test_ffprobe_returns_empty_on_file_not_found(monkeypatch):
-    engine = FfprobeEngine()
-    monkeypatch.setattr(engine, "_run", lambda p: (_ for _ in ()).throw(FileNotFoundError()))
-    assert engine.extract("/missing.mp4") == {}
-
-
-def test_ffprobe_returns_empty_on_subprocess_error(monkeypatch):
-    engine = FfprobeEngine()
-    monkeypatch.setattr(engine, "_run", lambda p: (_ for _ in ()).throw(subprocess.SubprocessError()))
-    assert engine.extract("/bad.mp4") == {}
-
-
-# ---------------------------------------------------------------------------
-# B — SceneDetectorEngine
-# ---------------------------------------------------------------------------
-
-def test_scene_detector_returns_float_list(monkeypatch):
-    engine = SceneDetectorEngine()
-    monkeypatch.setattr(engine, "detect", lambda p: [0.0, 45.2, 92.7])
-    result = engine.detect("/any.mp4")
-    assert isinstance(result, list)
-    assert all(isinstance(t, float) for t in result)
-
-
-def test_scene_detector_fallback_on_error(monkeypatch):
-    engine = SceneDetectorEngine()
-    # Simulate scenedetect not installed by patching detect to raise
-    original_detect = engine.detect
-
-    def _raising(path):
-        raise ImportError("no scenedetect")
-
-    monkeypatch.setattr(engine, "detect", _raising)
-    # The fallback is inside detect() itself; test the class-level fallback
-    # by calling the real detect which wraps with try/except
-    result = SceneDetectorEngine().detect("/any.mp4")  # real call — returns [0.0] when sd not installed
-    assert isinstance(result, list)
-    assert len(result) >= 1
-
-
-# ---------------------------------------------------------------------------
-# C — FrameExtractorEngine
-# ---------------------------------------------------------------------------
-
-def test_frame_extractor_returns_true_on_success(monkeypatch):
-    engine = FrameExtractorEngine()
-    monkeypatch.setattr(engine, "extract_frame", lambda *a: True)
-    assert engine.extract_frame("/v.mp4", 0.0, "/out.png") is True
-
-
-def test_frame_extractor_returns_false_on_error(monkeypatch):
-    engine = FrameExtractorEngine()
-    monkeypatch.setattr(engine, "extract_frame", lambda *a: False)
-    assert engine.extract_frame("/v.mp4", 0.0, "/out.png") is False
 
 
 # ---------------------------------------------------------------------------
 # D — Plugin lifecycle
 # ---------------------------------------------------------------------------
 
-def test_plugin_subscribes_on_initialize():
+def test_plugin_subscribes_on_initialize(tmp_path, monkeypatch):
     db, _ = _db_with_video()
-    p = _plugin(db)
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
     assert p._on_asset_created in bus._handlers.get("asset.created", [])
     p.teardown()
 
 
-def test_plugin_unsubscribes_on_teardown():
+def test_plugin_unsubscribes_on_teardown(tmp_path, monkeypatch):
     db, _ = _db_with_video()
-    p = _plugin(db)
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
     p.teardown()
     assert p._on_asset_created not in bus._handlers.get("asset.created", [])
 
 
-def test_plugin_skips_image_assets(monkeypatch):
-    db, _ = _db_with_video()
-    called = []
-    monkeypatch.setattr(FfprobeEngine, "extract", lambda self, p: called.append(p) or {})
-    p = _plugin(db)
+def test_plugin_skips_image_assets(tmp_path, monkeypatch):
+    db = Database(":memory:")
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
+    called: list[str] = []
+    bus.subscribe("frames.extracted", lambda **kw: called.append(kw))
     bus.publish("asset.created", asset_id="x", asset_type=AssetType.IMAGE.value)
+    bus.unsubscribe("frames.extracted", called.append)
     assert called == []
     p.teardown()
 
@@ -140,94 +67,123 @@ def test_plugin_skips_image_assets(monkeypatch):
 # E — Core pipeline
 # ---------------------------------------------------------------------------
 
-def test_stores_video_metadata_in_raw_metadata(monkeypatch):
+def test_stores_video_metadata_in_raw_metadata(tmp_path, monkeypatch):
     db, video = _db_with_video()
-    _mock_engines(monkeypatch)
-    p = _plugin(db)
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
     bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
     loaded = db.load_asset(video.id)
-    assert loaded.raw_metadata == _FAKE_FFPROBE
+    assert set(loaded.raw_metadata.keys()) == {"fps", "duration", "width", "height", "codec"}
+    assert isinstance(loaded.raw_metadata["fps"], float)
+    assert isinstance(loaded.raw_metadata["duration"], float)
     p.teardown()
 
 
-def test_creates_frame_assets_in_db(monkeypatch):
+def test_creates_frame_assets_in_db(tmp_path, monkeypatch):
     db, video = _db_with_video()
-    _mock_engines(monkeypatch)
-    p = _plugin(db)
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
     bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
     frames = [a for a in db.all_assets() if a.type == AssetType.VIDEO_FRAME]
-    assert len(frames) == 3
+    assert len(frames) >= 1
     assert all(f.parent_id == video.id for f in frames)
     p.teardown()
 
 
-def test_caps_at_max_frames(monkeypatch):
+def test_caps_at_max_frames(tmp_path, monkeypatch):
     db, video = _db_with_video()
-    _mock_engines(monkeypatch, scenes=[float(i) for i in range(25)])
-    p = _plugin(db)
+    # Override profiles so this asset always gets a 25-scene profile
+    p = VideoAnalysisPlugin()
+    monkeypatch.setattr("plugins.video_analysis.plugin._FRAMES_ROOT", tmp_path)
+    p._profiles = [{"fps": 24.0, "duration": 200.0, "width": 1920, "height": 1080, "codec": "h264", "scene_count": 25}]
+    p.initialize(db=db, hierarchy=AssetHierarchy())
     bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
     frames = [a for a in db.all_assets() if a.type == AssetType.VIDEO_FRAME]
     assert len(frames) == 20
     p.teardown()
 
 
-def test_registers_frames_in_hierarchy(monkeypatch):
+def test_registers_frames_in_hierarchy(tmp_path, monkeypatch):
     db, video = _db_with_video()
     hierarchy = AssetHierarchy()
     hierarchy.add(video)
-    _mock_engines(monkeypatch)
-    p = VideoAnalysisPlugin()
-    p.initialize(db=db, hierarchy=hierarchy)
+    p = _plugin(db, hierarchy=hierarchy, frames_root=tmp_path, monkeypatch=monkeypatch)
     bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
     children = hierarchy.get_children(video.id)
-    assert len(children) == 3
+    assert len(children) >= 1
     assert all(c.type == AssetType.VIDEO_FRAME for c in children)
     p.teardown()
 
 
-def test_publishes_frames_extracted(monkeypatch):
+def test_publishes_frames_extracted(tmp_path, monkeypatch):
     db, video = _db_with_video()
-    _mock_engines(monkeypatch)
-    p = _plugin(db)
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
     events: list[dict] = []
     bus.subscribe("frames.extracted", lambda **kw: events.append(kw))
     bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
     bus.unsubscribe("frames.extracted", events.append)
     assert len(events) == 1
     assert events[0]["asset_id"] == video.id
-    assert events[0]["scene_count"] == 3
-    assert len(events[0]["frame_ids"]) == 3
+    assert events[0]["scene_count"] >= 1
+    assert len(events[0]["frame_ids"]) == events[0]["scene_count"]
     p.teardown()
 
 
-def test_publishes_xmp_extracted_per_frame(monkeypatch):
+def test_publishes_xmp_extracted_per_frame(tmp_path, monkeypatch):
     db, video = _db_with_video()
-    _mock_engines(monkeypatch)
-    p = _plugin(db)
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
     xmp_events: list[dict] = []
     bus.subscribe("xmp.extracted", lambda **kw: xmp_events.append(kw))
     bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
     bus.unsubscribe("xmp.extracted", xmp_events.append)
-    frame_events = [e for e in xmp_events if not e["had_xmp"] and e["hfv_data"] == {}]
-    assert len(frame_events) == 3
+    frame_events = [e for e in xmp_events if e["hfv_data"] == {} and not e["had_xmp"]]
+    assert len(frame_events) >= 1
     p.teardown()
 
 
 # ---------------------------------------------------------------------------
-# F — Edge cases
+# F — Edge cases & stub-specific behaviour
 # ---------------------------------------------------------------------------
 
-def test_survives_missing_ffprobe(monkeypatch):
+def test_deterministic_profile_selection(tmp_path, monkeypatch):
+    """Same asset_id must always produce the same scene_count (within one run)."""
     db, video = _db_with_video()
-    monkeypatch.setattr(FfprobeEngine, "extract", lambda self, p: {})
-    monkeypatch.setattr(SceneDetectorEngine, "detect", lambda self, p: _THREE_SCENES)
-    monkeypatch.setattr(FrameExtractorEngine, "extract_frame", lambda self, *a: False)
-    p = _plugin(db)
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
     events: list[dict] = []
     bus.subscribe("frames.extracted", lambda **kw: events.append(kw))
     bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
+    count_first = events[-1]["scene_count"]
+
+    # Second plugin instance, same asset_id
+    db2, video2 = _db_with_video()
+    video2.id = video.id  # force same ID
+    db2.save_asset(video2)
+    p2 = _plugin(db2, frames_root=tmp_path, monkeypatch=monkeypatch)
+    bus.publish("asset.created", asset_id=video2.id, asset_type=AssetType.VIDEO.value)
+    count_second = events[-1]["scene_count"]
+
     bus.unsubscribe("frames.extracted", events.append)
-    assert len(events) == 1
-    loaded = db.load_asset(video.id)
-    assert loaded.raw_metadata == {}
+    assert count_first == count_second
+    p.teardown(); p2.teardown()
+
+
+def test_frame_png_files_are_created(tmp_path, monkeypatch):
+    """Pillow-generated thumbnails must exist as valid PNG files."""
+    db, video = _db_with_video()
+    p = _plugin(db, frames_root=tmp_path, monkeypatch=monkeypatch)
+    bus.publish("asset.created", asset_id=video.id, asset_type=AssetType.VIDEO.value)
+    frame_assets = [a for a in db.all_assets() if a.type == AssetType.VIDEO_FRAME]
+    assert len(frame_assets) >= 1
+    for fa in frame_assets:
+        from pathlib import Path
+        png = Path(fa.source_path)
+        assert png.exists(), f"Frame file missing: {png}"
+        assert png.read_bytes()[:4] == b"\x89PNG", f"Not a valid PNG: {png}"
+    p.teardown()
+
+
+def test_skips_when_db_is_none():
+    """Plugin must not crash when no db is wired."""
+    p = VideoAnalysisPlugin()
+    p.initialize(db=None, hierarchy=None)
+    # Should not raise
+    bus.publish("asset.created", asset_id="test-id", asset_type=AssetType.VIDEO.value)
     p.teardown()

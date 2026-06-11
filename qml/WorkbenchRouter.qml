@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import CineMeta 1.0
 
 Item {
     id: router
@@ -17,21 +18,21 @@ Item {
     // Empty state shown when no plugin is active
     Column {
         anchors.centerIn: parent
-        spacing: 16
+        spacing: Theme.spacingL
         visible: router.activeWorkbenchUrl === "" && workbenchLoader.status !== Loader.Ready
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "Kein Workbench aktiv"
-            color: "#888"
+            color: Theme.textSecondary
             font.pixelSize: 22
         }
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "Aktiviere ein Plugin über den Plugin-Manager."
-            color: "#555"
-            font.pixelSize: 14
+            color: Theme.textMuted
+            font.pixelSize: Theme.fontSizeL
         }
     }
 }

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import io
+import json
 import uuid
 from pathlib import Path
 from typing import Any
@@ -8,13 +10,25 @@ from cinemeta.domain.hierarchy import AssetHierarchy
 from cinemeta.event_bus import bus
 from cinemeta.persistence import Database
 from cinemeta.plugin_interface import CineMetaPlugin, CineMetaWorkbench
-from .ffprobe_engine import FfprobeEngine
-from .frame_extractor import FrameExtractorEngine
-from .scene_detector import SceneDetectorEngine
 
 _PLUGIN_DIR = Path(__file__).parent
 _MAX_FRAMES = 20
 _FRAMES_ROOT = Path.home() / ".cinemeta" / "frames"
+
+# ---------------------------------------------------------------------------
+# Stub helper: generate a colored PNG thumbnail using Pillow only
+# ---------------------------------------------------------------------------
+
+def _make_frame_png(hue_degrees: int, size: tuple[int, int] = (320, 180)) -> bytes:
+    """Return PNG bytes for a solid-colour thumbnail at the given HSV hue."""
+    from PIL import Image
+    import colorsys
+    r, g, b = colorsys.hsv_to_rgb(hue_degrees / 360.0, 0.7, 0.55)
+    colour = (int(r * 255), int(g * 255), int(b * 255))
+    img = Image.new("RGB", size, colour)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 class VideoWorkbench(CineMetaWorkbench):
@@ -32,12 +46,19 @@ class VideoWorkbench(CineMetaWorkbench):
 
 
 class VideoAnalysisPlugin(CineMetaPlugin):
+    """Stub video-analysis plugin.
+
+    Uses deterministic mock data (mock_video_data.json) and Pillow to generate
+    coloured thumbnail PNGs.  No ffprobe, scenedetect, or opencv required.
+    The real backend will replace this stub while keeping the identical event
+    contract.
+    """
+
     def __init__(self) -> None:
         self._db: Database | None = None
         self._hierarchy: AssetHierarchy | None = None
-        self._ffprobe = FfprobeEngine()
-        self._scenes = SceneDetectorEngine()
-        self._frames = FrameExtractorEngine()
+        data_path = _PLUGIN_DIR / "mock_video_data.json"
+        self._profiles: list[dict] = json.loads(data_path.read_text(encoding="utf-8"))["profiles"]
 
     @property
     def name(self) -> str:
@@ -75,20 +96,26 @@ class VideoAnalysisPlugin(CineMetaPlugin):
         if asset is None:
             return
 
-        # 1. Extract and persist video metadata
-        meta = self._ffprobe.extract(asset.source_path)
-        if meta:
-            asset.raw_metadata = meta
-            self._db.save_asset(asset)
+        # 1. Pick a deterministic mock profile
+        profile = self._profiles[hash(asset_id) % len(self._profiles)]
+        scene_count = min(profile["scene_count"], _MAX_FRAMES)
 
-        # 2. Detect scene boundaries
-        timestamps = self._scenes.detect(asset.source_path)[:_MAX_FRAMES]
+        # 2. Persist video metadata (same keys a real ffprobe backend would produce)
+        meta = {k: profile[k] for k in ("fps", "duration", "width", "height", "codec")}
+        asset.raw_metadata = meta
+        self._db.save_asset(asset)
 
-        # 3. Extract one frame per scene
+        # 3. Generate stub frames as coloured PNG thumbnails via Pillow
+        frames_dir = _FRAMES_ROOT / asset_id
+        frames_dir.mkdir(parents=True, exist_ok=True)
+
+        asset_hash = hash(asset_id)
         frame_ids: list[str] = []
-        for i, ts in enumerate(timestamps):
-            frame_path = _FRAMES_ROOT / asset_id / f"scene_{i:03d}.png"
-            self._frames.extract_frame(asset.source_path, ts, str(frame_path))
+
+        for i in range(scene_count):
+            hue = (asset_hash + i * 37) % 360
+            frame_path = frames_dir / f"scene_{i:03d}.png"
+            frame_path.write_bytes(_make_frame_png(hue))
 
             frame_asset = MediaAsset(
                 id=str(uuid.uuid4()),
@@ -117,5 +144,5 @@ class VideoAnalysisPlugin(CineMetaPlugin):
             "frames.extracted",
             asset_id=asset_id,
             frame_ids=frame_ids,
-            scene_count=len(timestamps),
+            scene_count=scene_count,
         )

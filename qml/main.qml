@@ -1,7 +1,9 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.Material
 import QtQuick.Layouts
 import "components"
+import CineMeta 1.0
 
 ApplicationWindow {
     id: root
@@ -9,22 +11,24 @@ ApplicationWindow {
     width: 1280
     height: 800
     title: "CineMeta Studio"
+    Material.theme: Material.Dark
+    Material.accent: Material.Purple
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // Titlebar / toolbar
+        // Titlebar
         Rectangle {
             Layout.fillWidth: true
             height: 48
-            color: "#1a1a2e"
+            color: Theme.bgApp
 
             Text {
                 anchors.centerIn: parent
                 text: "CineMeta Studio"
-                color: "#e0e0e0"
-                font.pixelSize: 18
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontSizeXL
                 font.bold: true
             }
         }
@@ -39,7 +43,7 @@ ApplicationWindow {
         Rectangle {
             Layout.fillWidth: true
             height: 28
-            color: "#16213e"
+            color: Theme.bgPanel
 
             PluginStatusBar {}
         }
